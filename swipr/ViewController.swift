@@ -13,17 +13,13 @@ class ViewController: UIViewController {
     @IBOutlet var leftSwitch: UISwitch!
     @IBOutlet var rightSwitch: UISwitch!
     
-    var switches = [Int: String]()
+    var isConnectedToDevice = false
     
     var device1State = 0 {
-        didSet {
-            reportState()
-        }
+        didSet { reportState() }
     }
     var device2State = 0 {
-        didSet {
-            reportState()
-        }
+        didSet { reportState() }
     }
     
     override func viewDidLoad() {
@@ -31,8 +27,55 @@ class ViewController: UIViewController {
         
         // TO DO: load device states from user defaults
         
-        switches = [0: "Left Switch", 1: "Right Switch"]
+        configureUI()
+
+    }
+
+    @IBAction func flippedSwitch(_ sender: UISwitch) {
         
+        if isConnectedToDevice {
+            
+            // TO DO: Save device states to user defaults
+            if sender.tag == 0 {
+                // switch 1
+                device1State = sender.isOn ? 1 : 0
+            } else {
+                // switch 2
+                device2State = sender.isOn ? 1 : 0
+            }
+            
+        } else {
+            leftSwitch.isOn = false
+            rightSwitch.isOn = false
+            showAlert(title: "Not connected to device!", message: nil)
+        }
+    }
+    
+    func reportState() {
+        // eventually will send state instruction over bluetooth
+        print("System State: \(device1State)\(device2State)")
+    }
+    
+    @objc func scanForDevices() {
+        
+        // to do: scan for bluetooth devices
+        
+        // show user alert
+        showAlert(title: "Connected to bluetooth device", message: nil)
+        isConnectedToDevice = true
+    }
+    
+    func showAlert(title: String, message: String?) {
+        let ac = UIAlertController(title: title, message: message, preferredStyle: .alert)
+        let action = UIAlertAction(title: "OK", style: .default)
+        ac.addAction(action)
+        present(ac, animated: true)
+    }
+    
+    func configureUI() {
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Connect to Device", style: .plain, target: self, action: #selector(scanForDevices))
+        navigationItem.rightBarButtonItem?.tintColor = UIColor.white
+            
         leftSwitch.tintColor = UIColor.lightGray
         leftSwitch.backgroundColor = UIColor.lightGray
         leftSwitch.layer.cornerRadius = 16
@@ -40,21 +83,6 @@ class ViewController: UIViewController {
         rightSwitch.tintColor = UIColor.lightGray
         rightSwitch.backgroundColor = UIColor.lightGray
         rightSwitch.layer.cornerRadius = 16
-
-    }
-
-    @IBAction func flippedSwitch(_ sender: UISwitch) {
-        if sender.tag == 0 {
-            device1State = sender.isOn ? 1 : 0
-        } else {
-            device2State = sender.isOn ? 1 : 0
-        }
-        
-        // TO DO: Save device states from user defaults
-    }
-    
-    func reportState() {
-        print("System State: \(device1State)\(device2State)")
     }
     
     
