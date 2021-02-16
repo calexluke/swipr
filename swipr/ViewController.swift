@@ -13,7 +13,7 @@ class ViewController: UIViewController {
     @IBOutlet var leftSwitch: UISwitch!
     @IBOutlet var rightSwitch: UISwitch!
     
-    var isConnectedToDevice = false
+    var isConnectedToDevice = true
     
     var device1State = 0 {
         didSet { reportState() }
@@ -73,7 +73,7 @@ class ViewController: UIViewController {
     }
     
     func configureUI() {
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Connect to Device", style: .plain, target: self, action: #selector(scanForDevices))
+        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Scan", style: .plain, target: self, action: #selector(scanForDevices))
         navigationItem.rightBarButtonItem?.tintColor = UIColor.white
             
         leftSwitch.tintColor = UIColor.lightGray
