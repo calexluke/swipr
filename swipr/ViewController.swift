@@ -41,8 +41,10 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         secondDeviceState = defaults.integer(forKey: "secondDeviceState")
         
         configureUI()
+        configureSwipeRecognizers()
         
         centralManager = CBCentralManager(delegate: self, queue: nil)
+        
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -87,8 +89,19 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
             navigationItem.rightBarButtonItem?.action = #selector(disconnectFromDevice)
         }
     }
+    
+    func configureSwipeRecognizers() {
+        // add swipe gesture recognizers
+        let swipeRight = UISwipeGestureRecognizer(target: self, action: #selector(respondToSwipeGesture))
+        swipeRight.direction = .right
+        view.addGestureRecognizer(swipeRight)
+
+        let swipeLeft = UISwipeGestureRecognizer(target: self, action: #selector(respondToSwipeGesture))
+        swipeLeft.direction = .left
+        view.addGestureRecognizer(swipeLeft)
+    }
         
-    @IBAction func flippedSwitch(_ sender: UISwitch) {
+    @IBAction func flippedSwitch(_ sender: UISwitch?) {
         
         guard connectedPeripheral != nil else {
             // not connected to bluetooth device
@@ -107,6 +120,29 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         defaults.setValue(secondDeviceState, forKey: "secondDeviceState")
         
         writeStateToBluetoothDevice()
+    }
+    
+    @objc func respondToSwipeGesture(gesture: UIGestureRecognizer) {
+        
+        // respond to swipe
+        if let swipeGesture = gesture as? UISwipeGestureRecognizer {
+            
+            print("Swipe location: \(swipeGesture.location(in: view))")
+            switch swipeGesture.direction {
+            case .right:
+                print("Swiped right")
+                leftSwitch.setOn(true, animated: true)
+                rightSwitch.setOn(true, animated: true)
+                flippedSwitch(nil)
+            case .left:
+                print("Swiped left")
+                leftSwitch.setOn(false, animated: true)
+                rightSwitch.setOn(false, animated: true)
+                flippedSwitch(nil)
+            default:
+                break
+            }
+        }
     }
         
     func showAlert(title: String, message: String?) {
@@ -167,8 +203,9 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         print("connected to \(peripheral.name!)")
         connectedPeripheral.delegate = self
         configureBarButton(mode: .disconnect)
+        showAlert(title: "Connected!", message: "Swipe to turn both devices on or off together, or tap the switches to control them separately.")
         
-        // goal: find teh correct peripheral service using its ID, then find the service's write characteristic
+        // goal: find the correct peripheral service using its ID, then find the service's write characteristic
         // call peripheral didDiscoverServices
         connectedPeripheral.discoverServices(nil)
     }
