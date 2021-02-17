@@ -15,10 +15,10 @@ class ViewController: UIViewController {
     
     var isConnectedToDevice = true
     
-    var device1State = 0 {
+    var firstDeviceState = 0 {
         didSet { reportState() }
     }
-    var device2State = 0 {
+    var secondDeviceState = 0 {
         didSet { reportState() }
     }
     
@@ -38,10 +38,10 @@ class ViewController: UIViewController {
             // TO DO: Save device states to user defaults
             if sender.tag == 0 {
                 // switch 1
-                device1State = sender.isOn ? 1 : 0
+                firstDeviceState = sender.isOn ? 1 : 0
             } else {
                 // switch 2
-                device2State = sender.isOn ? 1 : 0
+                secondDeviceState = sender.isOn ? 1 : 0
             }
             
         } else {
@@ -53,7 +53,7 @@ class ViewController: UIViewController {
     
     func reportState() {
         // eventually will send state instruction over bluetooth
-        print("System State: \(device1State)\(device2State)")
+        print("System State: \(firstDeviceState)\(secondDeviceState)")
     }
     
     @objc func scanForDevices() {
@@ -79,10 +79,12 @@ class ViewController: UIViewController {
         leftSwitch.tintColor = UIColor.lightGray
         leftSwitch.backgroundColor = UIColor.lightGray
         leftSwitch.layer.cornerRadius = 16
+        view.bringSubviewToFront(leftSwitch)
 
         rightSwitch.tintColor = UIColor.lightGray
         rightSwitch.backgroundColor = UIColor.lightGray
         rightSwitch.layer.cornerRadius = 16
+        view.bringSubviewToFront(rightSwitch)
     }
     
     

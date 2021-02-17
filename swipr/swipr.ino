@@ -1,12 +1,11 @@
 
 #include <SoftwareSerial.h>
 
-const int LED_0 = 13;
-const int LED_1 = 12;
+const int LED_0 = 3;
+const int LED_1 = 4;
 String command;
 // Don't use the rx, tx pins on Arduino (0 and 1) - those are for hardware serial.
-SoftwareSerial HM10(2, 3); // RX, TX
-
+SoftwareSerial HM10(11, 12); // RX, TX
 
 void setup() {
   
