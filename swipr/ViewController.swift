@@ -22,8 +22,11 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     var connectedPeripheral: CBPeripheral?
     var writeCharacteristic: CBCharacteristic?
     
+    // 0: OFF, 1: ON. Coded as binary integers to simplify commands to HM-10
     var firstDeviceState = 0
     var secondDeviceState = 0
+    
+    let defaults = UserDefaults.standard
     
     enum barButtonMode {
         case scan;
@@ -33,9 +36,12 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // TO DO: load UI switch states from user defaults
+        // load device states from user defaults
+        firstDeviceState = defaults.integer(forKey: "firstDeviceState")
+        secondDeviceState = defaults.integer(forKey: "secondDeviceState")
         
         configureUI()
+        
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
     
@@ -61,11 +67,14 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         leftSwitch.backgroundColor = UIColor.lightGray
         leftSwitch.layer.cornerRadius = 16
         view.bringSubviewToFront(leftSwitch)
+        // set switch position based on stored device state
+        leftSwitch.isOn = firstDeviceState == 1 ? true : false
 
         rightSwitch.tintColor = UIColor.lightGray
         rightSwitch.backgroundColor = UIColor.lightGray
         rightSwitch.layer.cornerRadius = 16
         view.bringSubviewToFront(rightSwitch)
+        rightSwitch.isOn = secondDeviceState == 1 ? true : false
     }
     
     func configureBarButton(mode: barButtonMode) {
@@ -83,19 +92,23 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         
         guard connectedPeripheral != nil else {
             // not connected to bluetooth device
-            leftSwitch.isOn = false
-            rightSwitch.isOn = false
+            // change switch back to its prior value and don't update device state
+            leftSwitch.isOn = firstDeviceState == 1 ? true : false
+            rightSwitch.isOn = secondDeviceState == 1 ? true : false
             showAlert(title: "Not connected to device!", message: "Tap 'scan' and try again.")
             return
         }
         
-        // TO DO: Save device states to user defaults
+        // update device states based on switch positions and save to user defaults
         firstDeviceState = leftSwitch.isOn ? 1 : 0
+        defaults.setValue(firstDeviceState, forKey: "firstDeviceState")
+        
         secondDeviceState = rightSwitch.isOn ? 1 : 0
+        defaults.setValue(secondDeviceState, forKey: "secondDeviceState")
+        
         writeStateToBluetoothDevice()
     }
-    
-    
+        
     func showAlert(title: String, message: String?) {
         let ac = UIAlertController(title: title, message: message, preferredStyle: .alert)
         let action = UIAlertAction(title: "OK", style: .default)
@@ -104,48 +117,13 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     
-    func writeStateToBluetoothDevice() {
-        // convert device state to data object and send over bluetooth
-        let stateString = "\(firstDeviceState)\(secondDeviceState)"
-        print(stateString)
-       
-        guard let peripheral = connectedPeripheral else {
-            showAlert(title: "Error", message: "Error writing data: not connected to device")
-            return
-        }
-        guard let characteristic = writeCharacteristic else {
-            showAlert(title: "Error", message: "Error writing data: could not write to the device")
-            return
-        }
-        
-        if let stateData = stateString.data(using: String.Encoding.utf8) {
-            peripheral.writeValue(stateData, for: characteristic, type: CBCharacteristicWriteType.withoutResponse)
-        } else {
-            print("Error converting string to data object")
-        }
-    }
-    
-    @objc func scanForDevices() {
-        // calls centalManager didDiscover peripheral
-        centralManager?.scanForPeripherals(withServices: [CBUUID(string: swiprServiceID)], options: nil)
-        print("scanning for devices")
-    }
-    
-    @objc func disconnectFromDevice() {
-        guard let peripheral = connectedPeripheral else {return}
-        centralManager.cancelPeripheralConnection(peripheral)
-        connectedPeripheral = nil
-        showAlert(title: "Disconnected", message: "You are no longer connected to swipr. Tap 'scan' to re-connect.")
-        configureBarButton(mode: .scan)
-    }
-    
-    
     
     //MARK: - CoreBluetooth methods
     
     func centralManagerDidUpdateState(_ central: CBCentralManager) {
         
-        print("centralManagerDidUpdateState started")
+        print("centralManagerDidUpdateState:")
+        
         switch central.state {
         case .poweredOff:
             print("power is off")
@@ -229,6 +207,28 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         }
     }
         
+    
+    func writeStateToBluetoothDevice() {
+        // convert device state to data object and send over bluetooth
+        let stateString = "\(firstDeviceState)\(secondDeviceState)"
+        print(stateString)
+       
+        guard let peripheral = connectedPeripheral else {
+            showAlert(title: "Error", message: "Error writing data: not connected to device")
+            return
+        }
+        guard let characteristic = writeCharacteristic else {
+            showAlert(title: "Error", message: "Error writing data: could not write to the device")
+            return
+        }
+        
+        if let stateData = stateString.data(using: String.Encoding.utf8) {
+            peripheral.writeValue(stateData, for: characteristic, type: CBCharacteristicWriteType.withoutResponse)
+        } else {
+            print("Error converting string to data object")
+        }
+    }
+    
     func askUserToConnect(peripheral: CBPeripheral) {
         
         let ac = UIAlertController(title: "\(peripheral.name!) Device Recognized!", message: "Do you wish to connect?", preferredStyle: .alert)
@@ -243,6 +243,19 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         present(ac, animated: true)
     }
     
+    @objc func scanForDevices() {
+        // calls centalManager didDiscover peripheral
+        centralManager?.scanForPeripherals(withServices: [CBUUID(string: swiprServiceID)], options: nil)
+        print("scanning for devices")
+    }
+    
+    @objc func disconnectFromDevice() {
+        guard let peripheral = connectedPeripheral else {return}
+        centralManager.cancelPeripheralConnection(peripheral)
+        connectedPeripheral = nil
+        showAlert(title: "Disconnected", message: "You are no longer connected to swipr. Tap 'scan' to re-connect.")
+        configureBarButton(mode: .scan)
+    }
     
 }
 
