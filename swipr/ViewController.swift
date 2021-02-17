@@ -15,22 +15,26 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     @IBOutlet var rightSwitch: UISwitch!
     
     // constants from HM-10 datasheet
-    let serviceID = "FFE0"
-    let characteristicID = "FFE1"
+    let swiprServiceID = "FFE0"
+    let swiprCharacteristicID = "FFE1"
     
     var centralManager: CBCentralManager!
     var connectedPeripheral: CBPeripheral?
     var writeCharacteristic: CBCharacteristic?
     
-    var firstDeviceState = 0 {didSet { writeStateToDevice() }}
-    var secondDeviceState = 0 {didSet { writeStateToDevice() }}
-    var isConnectedToDevice = false
+    var firstDeviceState = 0
+    var secondDeviceState = 0
     
-    
+    enum barButtonMode {
+        case scan;
+        case disconnect;
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // TO DO: load device states from user defaults
+        // TO DO: load UI switch states from user defaults
+        
         configureUI()
         centralManager = CBCentralManager(delegate: self, queue: nil)
     }
@@ -43,10 +47,13 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     override func viewWillDisappear(_ animated: Bool) {
-        // close bluetooth connection
+        if let peripheral = connectedPeripheral {
+            centralManager.cancelPeripheralConnection(peripheral)
+        }
     }
     
     func configureUI() {
+        
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Scan", style: .plain, target: self, action: #selector(scanForDevices))
         navigationItem.rightBarButtonItem?.tintColor = UIColor.white
             
@@ -60,24 +67,32 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         rightSwitch.layer.cornerRadius = 16
         view.bringSubviewToFront(rightSwitch)
     }
-
+    
+    func configureBarButton(mode: barButtonMode) {
+        switch mode {
+        case .scan:
+            navigationItem.rightBarButtonItem?.title = "Scan"
+            navigationItem.rightBarButtonItem?.action = #selector(scanForDevices)
+        case .disconnect:
+            navigationItem.rightBarButtonItem?.title = "Disconnect"
+            navigationItem.rightBarButtonItem?.action = #selector(disconnectFromDevice)
+        }
+    }
+        
     @IBAction func flippedSwitch(_ sender: UISwitch) {
         
-        if isConnectedToDevice {
-            // TO DO: Save device states to user defaults
-            if sender.tag == 0 {
-                // switch 1
-                firstDeviceState = sender.isOn ? 1 : 0
-            } else {
-                // switch 2
-                secondDeviceState = sender.isOn ? 1 : 0
-            }
-        } else {
+        guard connectedPeripheral != nil else {
             // not connected to bluetooth device
             leftSwitch.isOn = false
             rightSwitch.isOn = false
             showAlert(title: "Not connected to device!", message: "Tap 'scan' and try again.")
+            return
         }
+        
+        // TO DO: Save device states to user defaults
+        firstDeviceState = leftSwitch.isOn ? 1 : 0
+        secondDeviceState = rightSwitch.isOn ? 1 : 0
+        writeStateToBluetoothDevice()
     }
     
     
@@ -89,32 +104,42 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     }
     
     
-    func writeStateToDevice() {
-        // eventually will send state instruction over bluetooth
+    func writeStateToBluetoothDevice() {
+        // convert device state to data object and send over bluetooth
         let stateString = "\(firstDeviceState)\(secondDeviceState)"
         print(stateString)
-        let data = stateString  .data(using: String.Encoding.utf8)
+       
+        guard let peripheral = connectedPeripheral else {
+            showAlert(title: "Error", message: "Error writing data: not connected to device")
+            return
+        }
+        guard let characteristic = writeCharacteristic else {
+            showAlert(title: "Error", message: "Error writing data: could not write to the device")
+            return
+        }
         
-        if let peripheral = connectedPeripheral {
-            if let characteristic = writeCharacteristic {
-                peripheral.writeValue(data!, for: characteristic, type: CBCharacteristicWriteType.withoutResponse)
-            } else {
-                print("Error writing data: wrote characteristic is nil")
-            }
+        if let stateData = stateString.data(using: String.Encoding.utf8) {
+            peripheral.writeValue(stateData, for: characteristic, type: CBCharacteristicWriteType.withoutResponse)
         } else {
-            print("Error writing data: not connected to device")
+            print("Error converting string to data object")
         }
     }
     
     @objc func scanForDevices() {
         // calls centalManager didDiscover peripheral
-        centralManager?.scanForPeripherals(withServices: [CBUUID(string: serviceID)], options: nil)
+        centralManager?.scanForPeripherals(withServices: [CBUUID(string: swiprServiceID)], options: nil)
         print("scanning for devices")
     }
     
-    func hasConnected() {
-        
+    @objc func disconnectFromDevice() {
+        guard let peripheral = connectedPeripheral else {return}
+        centralManager.cancelPeripheralConnection(peripheral)
+        connectedPeripheral = nil
+        showAlert(title: "Disconnected", message: "You are no longer connected to swipr. Tap 'scan' to re-connect.")
+        configureBarButton(mode: .scan)
     }
+    
+    
     
     //MARK: - CoreBluetooth methods
     
@@ -161,13 +186,12 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         
         guard let connectedPeripheral = connectedPeripheral else {return}
         
-        // To do: update nav bar for disconnect option
-        
         print("connected to \(peripheral.name!)")
-        isConnectedToDevice = true
         connectedPeripheral.delegate = self
+        configureBarButton(mode: .disconnect)
         
-        // calls peripheral didDiscoverServices
+        // goal: find teh correct peripheral service using its ID, then find the service's write characteristic
+        // call peripheral didDiscoverServices
         connectedPeripheral.discoverServices(nil)
     }
     
@@ -178,14 +202,14 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
             for service in services {
                 print("Service: \(service)")
                 let swiprService = service as CBService
-                if swiprService.uuid == CBUUID(string: serviceID) {
-                    // calls peripheral didDiscoverCharacteristics
+                if swiprService.uuid == CBUUID(string: swiprServiceID) {
+                    // matches service ID from HM-10 datasheet
+                    // call peripheral didDiscoverCharacteristics
                     peripheral.discoverCharacteristics(nil, for: swiprService)
                 }
             }
         } else {
             print("no services available")
-            
         }
     }
     
@@ -195,14 +219,14 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
             for characteristic in characteristics {
                 print(characteristic)
                 let swiprCharacteristic = characteristic as CBCharacteristic
-                if swiprCharacteristic.uuid == CBUUID(string: characteristicID) {
+                if swiprCharacteristic.uuid == CBUUID(string: swiprCharacteristicID) {
+                    // matches characteristic ID from HM-10 datasheet
                     writeCharacteristic = swiprCharacteristic
                 }
             }
         } else {
             print("No characteristics available")
         }
-        
     }
         
     func askUserToConnect(peripheral: CBPeripheral) {
