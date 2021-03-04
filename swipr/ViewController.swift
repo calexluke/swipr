@@ -13,6 +13,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     
     @IBOutlet var leftSwitch: UISwitch!
     @IBOutlet var rightSwitch: UISwitch!
+    @IBOutlet var activityIndicator: UIActivityIndicatorView!
     
     // constants from HM-10 datasheet
     let swiprServiceID = "FFE0"
@@ -62,6 +63,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     
     func configureUI() {
         
+        activityIndicator.stopAnimating()
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "Scan", style: .plain, target: self, action: #selector(scanForDevices))
         navigationItem.rightBarButtonItem?.tintColor = UIColor.white
             
@@ -102,8 +104,8 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
     }
         
     @IBAction func flippedSwitch(_ sender: UISwitch?) {
-        
-        guard connectedPeripheral != nil else {
+    
+        guard writeCharacteristic != nil else {
             // not connected to bluetooth device
             // change switch back to its prior value and don't update device state
             leftSwitch.isOn = firstDeviceState == 1 ? true : false
@@ -210,6 +212,18 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         connectedPeripheral.discoverServices(nil)
     }
     
+    // called when bluetooth connection is lost unexpectedly
+    func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        
+        var title = "Disconnected from device!"
+        if let error = error {
+            title += "\n\(error.localizedDescription)"
+        }
+        showAlert(title: title, message: "Check that the device is powered on and in range, and tap scan to try to re-connect.")
+        connectedPeripheral = nil
+        configureBarButton(mode: .scan)
+    }
+    
     func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
         
         if let services = peripheral.services {
@@ -252,6 +266,7 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
        
         guard let peripheral = connectedPeripheral else {
             showAlert(title: "Error", message: "Error writing data: not connected to device")
+            configureBarButton(mode: .scan)
             return
         }
         guard let characteristic = writeCharacteristic else {
@@ -278,12 +293,25 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         ac.addAction(ok)
         ac.addAction(cancel)
         present(ac, animated: true)
+        activityIndicator.stopAnimating()
     }
     
     @objc func scanForDevices() {
         // calls centalManager didDiscover peripheral
         centralManager?.scanForPeripherals(withServices: [CBUUID(string: swiprServiceID)], options: nil)
+        activityIndicator.startAnimating()
         print("scanning for devices")
+        
+        // check if connection succeeded after 10 seconds
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10) {
+            // unable to connect
+            if self.connectedPeripheral == nil {
+                self.centralManager.stopScan()
+                self.showAlert(title: "Unable to connect", message: "Check that the device is powered on and in range, and tap 'scan' to try again.")
+                self.activityIndicator.stopAnimating()
+                self.configureBarButton(mode: .scan)
+            }
+        }
     }
     
     @objc func disconnectFromDevice() {
@@ -291,7 +319,6 @@ class ViewController: UIViewController, CBCentralManagerDelegate, CBPeripheralDe
         centralManager.cancelPeripheralConnection(peripheral)
         connectedPeripheral = nil
         showAlert(title: "Disconnected", message: "You are no longer connected to swipr. Tap 'scan' to re-connect.")
-        configureBarButton(mode: .scan)
     }
     
 }
